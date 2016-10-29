@@ -3,15 +3,18 @@ var bodyparser = require('body-parser');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var expressSession = require('express-session');
+var mongoose = require('mongoose');
 var database = require('./db/dbmodels');
 var oauth = require('./oauth.js');
+var User = require('./users.js');
+var GoogleAuth = require('./googleAuth.js');
 
 var debug = require('debug')('passport-mongo');
 var hash = require('bcrypt-nodejs');
 var path = require('path');
 var passport = require('passport');
 var localStrategy = require('passport-local');
-var GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
+// var GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 
 var Twitter = require('twitter');
 
@@ -21,6 +24,9 @@ var client = new Twitter({
   access_token_key: '792024168267124736-pLzTXeMaXDfm9QiM9s6s6sAZbqOHf4L',
   access_token_secret: 'uf9waFFb9jkpExjtrngEEsrDnLqMCacDvRJI03Na9VLd4'
 });
+
+mongoose.connect('mongodb://localhost/passport-example');
+
 
 //initiate express
 var app = express();
@@ -91,7 +97,8 @@ app.post('/database', (req, res) => {
 
 // route for authtication with google passport
 app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] }));
+  passport.authenticate('google', { scope: ['https://www.googleapis.com/auth/plus.login',
+    'https://www.googleapis.com/auth/plus.profile.emails.read'] }));
 
 // route for if google authentication is successful redirect to dashboard
 // otherwise redirect to login
@@ -110,29 +117,39 @@ passport.use(new localStrategy(database.User.authenticate()));
 
 // configure google passport
 // oauth is exported from oauth.js
-passport.use(new GoogleStrategy({
-  clientID: oauth.google.clientID,
-  clientSecret: oauth.google.clientSecret,
-  callbackURL: oauth.google.callbackURL,
-  passReqToCallback: true
-  },
-  function(request, accessToken, refreshToken, profile, done) {
-    process.nextTick(function () {
-      return done(null, profile);
-    });
-  }
-));
+// passport.use(new GoogleStrategy({
+//   clientID: oauth.google.clientID,
+//   clientSecret: oauth.google.clientSecret,
+//   callbackURL: oauth.google.callbackURL,
+//   passReqToCallback: true
+//   },
+//   function(request, accessToken, refreshToken, profile, done) {
+//     process.nextTick(function () {
+//       return done(null, profile);
+//     });
+//   }
+// ));
 
-passport.serializeUser(function(user, done){
-        console.log('serializing user.');
-        done(null, user);
+// passport.serializeUser(function(user, done){
+//         console.log('serializing user.');
+//         done(null, user);
+//     });
+//
+// passport.deserializeUser(function(obj, done){
+//        console.log('deserialize user.');
+//        done(null, obj);
+//     });
+passport.serializeUser(function(user, done) {
+  console.log('serializeUser: ' + user._id);
+  done(null, user._id);
+});
+passport.deserializeUser(function(id, done) {
+  User.findById(id, function(err, user){
+    console.log(user);
+      if(!err) done(null, user);
+      else done(err, null);
     });
-
-passport.deserializeUser(function(obj, done){
-       console.log('deserialize user.');
-       done(null, obj);
-    });
-
+});
 
 // require routes
 var routes = require('./config/routes.js');
